@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Proyección de Perforación - OpEx</title>
+    
+    <link rel="stylesheet" href="https://pyscript.net/releases/2024.1.1/core.css">
+    <script type="module" src="https://pyscript.net/releases/2024.1.1/core.js"></script>
+    
+    <style>
+        :root { --primary: #2c3e50; --secondary: #3498db; --success: #27ae60; --danger: #e74c3c; --bg: #f4f7f6; --warning: #f1c40f; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: var(--bg); margin: 0; padding: 20px; color: #333; }
+        .container { max-width: 1200px; margin: auto; background: white; padding: 30px; border-radius: 10px; box-shadow: 0 4px 20px rgba(0,0,0,0.05); }
+        h1, h2, h3 { color: var(--primary); border-bottom: 2px solid var(--secondary); padding-bottom: 10px; margin-top: 0; }
+        h3 { border-bottom: 1px solid #bdc3c7; font-size: 18px; margin-top: 20px; padding-bottom: 5px;}
+        
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px; }
+        .card { background: #f8f9fa; padding: 20px; border-radius: 8px; border: 1px solid #e9ecef; }
+        label { font-weight: 600; display: block; margin-top: 10px; margin-bottom: 5px; font-size: 14px; }
+        input[type="number"], input[type="date"], input[type="text"] { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
+        
+        .destacado { background-color: #fff9e6; border-left: 4px solid var(--warning); padding: 15px; border-radius: 4px; margin-top: 15px;}
+        
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; background: white; font-size: 14px; }
+        th, td { padding: 10px; text-align: center; border: 1px solid #ddd; }
+        th { background-color: var(--primary); color: white; }
+        
+        .dataframe-table th { background-color: #34495e; text-align: center; color: white;}
+        .dataframe-table td { background-color: #ffffff; }
+        .dataframe-table tr:nth-child(even) td { background-color: #f9f9f9; }
+        
+        .btn { color: white; border: none; padding: 10px 15px; cursor: pointer; border-radius: 4px; font-weight: bold; transition: 0.3s; }
+        .btn-primary { background-color: var(--secondary); }
+        .btn-primary:hover { opacity: 0.9; }
+        .btn-success { background-color: var(--success); padding: 15px; font-size: 16px; flex: 2;}
+        .btn-success:disabled { background-color: #95a5a6; cursor: not-allowed; }
+        .btn-danger { background-color: var(--danger); padding: 15px; font-size: 16px; flex: 1;}
+        .btn-danger-small { background-color: var(--danger); padding: 8px 12px; font-size: 12px; }
+        
+        .actions-container { display: flex; gap: 15px; margin-top: 20px; }
+        
+        .kpi-container { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-top: 20px; }
+        .kpi { background: var(--primary); color: white; padding: 20px; border-radius: 8px; text-align: center; display: flex; flex-direction: column; justify-content: center;}
+        .kpi h3 { margin: 0; font-size: 13px; color: #bdc3c7; text-transform: uppercase; border: none; padding-bottom: 0; }
+        .kpi .value { font-size: 26px; font-weight: bold; margin: 10px 0; }
+        .kpi .subtext { font-size: 12px; color: #ecf0f1; }
+        
+        #loading { color: #e67e22; font-weight: bold; text-align: center; margin: 15px 0; }
+    </style>
+</head>
+<body>
+
+    <py-config>
+        packages = ["pandas", "statsmodels", "openpyxl"]
+    </py-config>
+
+    <div class="container">
+        <h1 style="border-bottom: 2px solid var(--secondary);">Dashboard Control de Perforación</h1>
+        <div id="loading">Cargando motor analítico (Python)... por favor espera unos segundos.</div>
+
+        <div class="grid-2">
+            <div class="card">
+                <h2>1. Parámetros del Mes</h2>
+                <div style="display: flex; gap: 10px;">
+                    <div style="flex: 1;">
+                        <label>Plan Mensual (m)</label>
+                        <input type="number" id="plan-mensual" value="3000">
+                    </div>
+                    <div style="flex: 1;">
+                        <label>Días del Mes</label>
+                        <input type="number" id="dias-mes" value="30">
+                    </div>
+                </div>
+                
+                <div class="destacado">
+                    <label style="margin-top:0;">Avance Acumulado del Mes (m)</label>
+                    <span style="font-size: 12px; color: #7f8c8d;">Edita este valor si el Excel no está al día.</span>
+                    <input type="number" id="avance-acumulado-global" value="0" style="font-size: 18px; font-weight: bold; color: var(--primary);">
+                </div>
+            </div>
+
+            <div class="card">
+                <h2>2. Carga de Datos y Fechas</h2>
+                <label>Sube el reporte de perforación (.xlsx)</label>
+                <input type="file" id="file-upload" accept=".xlsx">
+                <button class="btn btn-primary" id="btn-leer-excel" py-click="leer_excel" style="margin-top: 15px; width: 100%;" disabled>Leer Flota y Avance</button>
+                <div id="error-log" style="color: var(--danger); font-size: 12px; margin-top: 10px;"></div>
+                
+                <div style="display: flex; gap: 10px; margin-top: 20px; border-top: 1px solid #ccc; padding-top: 15px;">
+                    <div style="flex: 1;">
+                        <label>Inicio Proyección</label>
+                        <input type="date" id="fecha-inicio" value="2026-04-20">
+                    </div>
+                    <div style="flex: 1;">
+                        <label>Fin Proyección</label>
+                        <input type="date" id="fecha-fin" value="2026-04-26">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <h2>3. Flota Activa (Base para Proyección)</h2>
+                <button class="btn btn-primary" onclick="agregarEquipoVacio()">+ Añadir Sonda Manual</button>
+            </div>
+            
+            <table id="tabla-equipos">
+                <thead>
+                    <tr>
+                        <th>Sonda / Equipo</th>
+                        <th>Rendimiento Promedio (m/día)</th>
+                        <th>Acción</th>
+                    </tr>
+                </thead>
+                <tbody id="tbody-equipos">
+                    <tr id="fila-vacia"><td colspan="3" style="text-align:center; color:#7f8c8d;">Sube el Excel para poblar o añade manualmente.</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="actions-container">
+            <button class="btn btn-success" id="btn-proyectar" py-click="ejecutar_proyecciones" disabled>Ejecutar Proyecciones y Metas</button>
+            <button class="btn btn-danger" onclick="limpiarTodo()">Borrar Todo</button>
+        </div>
+
+        <div id="panel-resultados" style="display: none;">
+            <h2 style="margin-top: 30px;">4. Resultados y Asignación de Metas</h2>
+            
+            <div class="kpi-container">
+                <div class="kpi">
+                    <h3>Avance Actual</h3>
+                    <div class="value" id="kpi-avance">0 m</div>
+                    <div class="subtext">Dato ingresado a la fecha</div>
+                </div>
+                <div class="kpi" style="background: #2980b9;">
+                    <h3>Proyectado (Periodo)</h3>
+                    <div class="value" id="kpi-arima">0 m</div>
+                    <div class="subtext" id="kpi-arima-sub">Para los días seleccionados</div>
+                </div>
+                <div class="kpi" style="background: #e67e22;" id="kpi-req-card">
+                    <h3>Faltante del Mes</h3>
+                    <div class="value" id="kpi-requerido">0 m</div>
+                    <div class="subtext" id="kpi-req-sub">Para alcanzar plan mensual</div>
+                </div>
+            </div>
+
+            <div class="card" style="margin-top: 20px; text-align: center;">
+                <h3 style="margin-top: 0; border:none;">Análisis de Brecha</h3>
+                <h1 id="texto-brecha" style="margin: 10px 0; border: none;">Calculando...</h1>
+                <p id="detalle-brecha" style="color: #7f8c8d; font-size: 15px; margin: 0;"></p>
+            </div>
+
+            <div id="tabla-asignacion-container" style="margin-top: 20px; overflow-x: auto;"></div>
+
+            <div id="tabla-detalle-container" style="margin-top: 20px; overflow-x: auto;"></div>
+        </div>
+    </div>
+
+    <script>
+        function agregarEquipoVacio(nombre = "", rend = 0) {
+            const tbody = document.getElementById('tbody-equipos');
+            const filaVacia = document.getElementById('fila-vacia');
+            if(filaVacia) filaVacia.remove();
+
+            const tr = document.createElement('tr');
+            tr.className = "equipo-row";
+            tr.innerHTML = `
+                <td><input type="text" class="eq-nombre" value="${nombre}" placeholder="Ej: Sonda 1"></td>
+                <td><input type="number" class="eq-rend" value="${rend.toFixed(1)}" step="0.1"></td>
+                <td><button class="btn btn-danger-small" onclick="this.parentElement.parentElement.remove()">X</button></td>
+            `;
+            tbody.appendChild(tr);
+        }
+
+        function limpiarTodo() {
+            if(confirm("¿Estás seguro de que deseas borrar todos los datos y reiniciar el dashboard?")) {
+                window.location.reload();
+            }
+        }
+    </script>
+
+    <script type="py">
+        import pandas as pd
+        from statsmodels.tsa.arima.model import ARIMA
+        from js import document, window, Uint8Array, agregarEquipoVacio
+        import io
+        import warnings
+        warnings.filterwarnings('ignore')
+
+        document.getElementById("loading").style.display = "none"
+        document.getElementById("btn-leer-excel").disabled = False
+        document.getElementById("btn-proyectar").disabled = False
+
+        series_historicas = {}
+
+        def _norm(s):
+            return str(s).strip().upper() if s is not None else ""
+
+        def _resolve_col(df, candidates):
+            header_map = {_norm(c): c for c in df.columns}
+            for cand in candidates:
+                if _norm(cand) in header_map:
+                    return header_map[_norm(cand)]
+            return None
+
+        async def leer_excel(event):
+            global series_historicas
+            document.getElementById("btn-leer-excel").innerText = "Procesando Excel..."
+            document.getElementById("error-log").innerText = ""
+            series_historicas.clear()
+            
+            try:
+                file_input = document.getElementById("file-upload")
+                if file_input.files.length == 0:
+                    document.getElementById("error-log").innerText = "Sube un archivo Excel primero."
+                    return
+
+                file = file_input.files.item(0)
+                array_buffer = await file.arrayBuffer()
+                xls_content = io.BytesIO(array_buffer.to_bytes())
+                
+                xls = pd.ExcelFile(xls_content)
+                hojas_candidatas = [s for s in xls.sheet_names if "perforaci" in s.lower() or "avance" in s.lower() or "diario" in s.lower()]
+                sheet_name = hojas_candidatas[0] if hojas_candidatas else xls.sheet_names[0]
+                df = pd.read_excel(xls, sheet_name=sheet_name)
+                
+                col_equipo = _resolve_col(df, ["EQUIPO", "SONDA", "MÁQUINA", "MAQUINA", "TEAM"])
+                col_fecha = _resolve_col(df, ["FECHA", "FECHA REGISTRO", "DATE"])
+                col_desde = _resolve_col(df, ["DESDE", "FROM", "DESDE (M)", "INICIO"])
+                col_hasta = _resolve_col(df, ["HASTA", "TO", "HASTA (M)", "FIN"])
+                col_metros = _resolve_col(df, ["METROS", "METROS PERFORADOS", "AVANCE", "TOTAL"])
+
+                if not col_equipo or not col_fecha:
+                    document.getElementById("error-log").innerText = f"Faltan columnas clave."
+                    return
+
+                if col_metros:
+                    df['METROS_CALC'] = pd.to_numeric(df[col_metros], errors='coerce')
+                elif col_desde and col_hasta:
+                    df['METROS_CALC'] = pd.to_numeric(df[col_hasta], errors='coerce') - pd.to_numeric(df[col_desde], errors='coerce')
+                else:
+                    return
+
+                df['FECHA_CALC'] = pd.to_datetime(df[col_fecha], errors='coerce')
+                df = df.dropna(subset=['METROS_CALC', 'FECHA_CALC', col_equipo])
+                
+                avance_total_excel = df['METROS_CALC'].sum()
+                document.getElementById("avance-acumulado-global").value = round(avance_total_excel, 1)
+
+                daily = df.groupby(['FECHA_CALC', col_equipo])['METROS_CALC'].sum().reset_index()
+                tbody = document.getElementById('tbody-equipos')
+                tbody.innerHTML = ""
+                
+                equipos = daily[col_equipo].unique()
+                for eq in equipos:
+                    datos_eq = daily[daily[col_equipo] == eq].set_index('FECHA_CALC').asfreq('D', fill_value=0)
+                    series_historicas[str(eq)] = datos_eq['METROS_CALC']
+                    rend_eq = datos_eq['METROS_CALC'].mean()
+                    
+                    agregarEquipoVacio(str(eq), rend_eq)
+
+                window.alert(f"Excel procesado. Se cargaron {round(avance_total_excel, 1)} m. Puedes editar este total manualmente si no está al día.")
+
+            except Exception as e:
+                document.getElementById("error-log").innerText = f"Error: {str(e)}"
+            finally:
+                document.getElementById("btn-leer-excel").innerText = "Leer Flota y Avance"
+
+
+        def ejecutar_proyecciones(event):
+            try:
+                document.getElementById("btn-proyectar").innerText = "Calculando..."
+                
+                plan_mensual = float(document.getElementById("plan-mensual").value)
+                avance_historico_global = float(document.getElementById("avance-acumulado-global").value)
+                
+                fecha_inicio = pd.Timestamp(document.getElementById("fecha-inicio").value)
+                fecha_fin = pd.Timestamp(document.getElementById("fecha-fin").value)
+                
+                fechas_proyeccion = pd.date_range(fecha_inicio, fecha_fin)
+                dias_proyeccion = len(fechas_proyeccion)
+                
+                if dias_proyeccion <= 0:
+                    window.alert("La fecha de fin debe ser mayor a la de inicio.")
+                    return
+
+                equipos_ui = document.getElementsByClassName("equipo-row")
+                proyeccion_arima_total = 0
+                df_forecast = pd.DataFrame(index=fechas_proyeccion)
+                
+                # Para asignación proporcional de metas
+                rendimiento_total_flota = 0
+                
+                for row in equipos_ui:
+                    rend_manual = float(row.querySelector(".eq-rend").value)
+                    rendimiento_total_flota += rend_manual
+
+                for row in equipos_ui:
+                    nombre = row.querySelector(".eq-nombre").value
+                    rend_manual = float(row.querySelector(".eq-rend").value)
+                    
+                    forecast_valores = []
+
+                    if nombre in series_historicas and len(series_historicas[nombre]) > 3:
+                        try:
+                            modelo = ARIMA(series_historicas[nombre], order=(1,1,1))
+                            modelo_fit = modelo.fit()
+                            forecast_valores = modelo_fit.forecast(steps=dias_proyeccion).values
+                        except:
+                            forecast_valores = [rend_manual] * dias_proyeccion
+                    else:
+                        forecast_valores = [rend_manual] * dias_proyeccion
+                    
+                    forecast_valores = [max(0, val) for val in forecast_valores]
+                    df_forecast[nombre] = forecast_valores
+                    proyeccion_arima_total += sum(forecast_valores)
+
+                df_forecast['TOTAL DIARIO'] = df_forecast.sum(axis=1)
+                df_forecast.index = df_forecast.index.strftime('%Y-%m-%d')
+                df_forecast.index.name = 'FECHA'
+                
+                tabla_html = df_forecast.round(1).to_html(classes="dataframe-table", justify="center")
+                document.getElementById("tabla-detalle-container").innerHTML = f"<h3>Matriz de Proyección: Sonda por Día</h3>" + tabla_html
+
+                metros_faltantes_mes = plan_mensual - avance_historico_global
+                if metros_faltantes_mes < 0:
+                    metros_faltantes_mes = 0 
+                
+                # NUEVA LÓGICA: Distribución de Meta Restante
+                datos_asignacion = []
+                for row in equipos_ui:
+                    nombre = row.querySelector(".eq-nombre").value
+                    rend_manual = float(row.querySelector(".eq-rend").value)
+                    
+                    if rendimiento_total_flota > 0:
+                        participacion = rend_manual / rendimiento_total_flota
+                    else:
+                        participacion = 1.0 / len(equipos_ui) if len(equipos_ui) > 0 else 0
+                        
+                    meta_sonda = metros_faltantes_mes * participacion
+                    req_diario = meta_sonda / dias_proyeccion if dias_proyeccion > 0 else 0
+                    
+                    datos_asignacion.append({
+                        "Sonda / Equipo": nombre,
+                        "Rend. Promedio Actual (m/día)": round(rend_manual, 1),
+                        "Meta Asignada a Cubrir (m)": round(meta_sonda, 1),
+                        "Nuevo Rend. Requerido (m/día)": round(req_diario, 1)
+                    })
+                    
+                df_asignacion = pd.DataFrame(datos_asignacion).set_index("Sonda / Equipo")
+                tabla_asig_html = df_asignacion.to_html(classes="dataframe-table", justify="center")
+                
+                # Se oculta si ya se cumplió el plan
+                if metros_faltantes_mes > 0:
+                    document.getElementById("tabla-asignacion-container").innerHTML = f"<h3>Distribución de Meta Restante por Sonda (Prorrateo por Capacidad)</h3><p style='color: #7f8c8d; font-size: 14px;'>Muestra cuánto debe aportar cada sonda y cuál debe ser su nuevo ritmo diario para cumplir el plan este periodo.</p>" + tabla_asig_html
+                else:
+                    document.getElementById("tabla-asignacion-container").innerHTML = ""
+
+                document.getElementById("panel-resultados").style.display = "block"
+                document.getElementById("kpi-avance").innerText = f"{avance_historico_global:,.0f} m".replace(',', '.')
+                document.getElementById("kpi-arima").innerText = f"{proyeccion_arima_total:,.0f} m".replace(',', '.')
+                document.getElementById("kpi-requerido").innerText = f"{metros_faltantes_mes:,.0f} m".replace(',', '.')
+                
+                document.getElementById("kpi-arima-sub").innerText = f"En {dias_proyeccion} días"
+
+                brecha = proyeccion_arima_total - metros_faltantes_mes
+                texto_brecha = document.getElementById("texto-brecha")
+                detalle = document.getElementById("detalle-brecha")
+                card_req = document.getElementById("kpi-req-card")
+                
+                if metros_faltantes_mes == 0:
+                    texto_brecha.innerText = "¡Plan Mensual Cumplido! ✅"
+                    texto_brecha.style.color = "var(--success)"
+                    detalle.innerText = "Ya se alcanzó o superó la meta total del mes."
+                    card_req.style.background = "var(--success)"
+                elif brecha >= 0:
+                    texto_brecha.innerText = "¡Plan Asegurado! ✅"
+                    texto_brecha.style.color = "var(--success)"
+                    detalle.innerText = f"Con el ritmo proyectado alcanzarás la meta y la superarás por {abs(brecha):.0f} m."
+                    card_req.style.background = "var(--success)"
+                else:
+                    texto_brecha.innerText = f"Brecha Detectada ({-brecha:,.0f} m)"
+                    texto_brecha.style.color = "var(--danger)"
+                    detalle.innerText = f"Al terminar el periodo seleccionado, te seguirán faltando {abs(brecha):.0f} m para cerrar el mes. Revisa la tabla de distribución para asignar las nuevas metas."
+                    card_req.style.background = "var(--danger)"
+
+            except Exception as e:
+                window.alert(f"Error en el cálculo: {str(e)}")
+            finally:
+                document.getElementById("btn-proyectar").innerText = "Ejecutar Proyecciones y Metas"
+    </script>
+</body>
+</html>
