@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Proyección de Perforación - OpEx</title>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    
+    <style>
+        :root { --primary: #2c3e50; --secondary: #3498db; --success: #27ae60; --danger: #e74c3c; --bg: #f4f7f6; --warning: #f1c40f; --purple: #8e44ad;}
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: var(--bg); margin: 0; padding: 20px; color: #333; }
+        .container { max-width: 1200px; margin: auto; background: white; padding: 30px; border-radius: 10px; box-shadow: 0 4px 20px rgba(0,0,0,0.05); }
+        h1, h2, h3 { color: var(--primary); border-bottom: 2px solid var(--secondary); padding-bottom: 10px; margin-top: 0; }
+        h3 { border-bottom: 1px solid #bdc3c7; font-size: 18px; margin-top: 20px; padding-bottom: 5px;}
+        
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px; }
+        .card { background: #f8f9fa; padding: 20px; border-radius: 8px; border: 1px solid #e9ecef; }
+        label { font-weight: 600; display: block; margin-top: 10px; margin-bottom: 5px; font-size: 14px; }
+        input[type="number"], input[type="date"], input[type="text"] { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
+        
+        .destacado { background-color: #fff9e6; border-left: 4px solid var(--warning); padding: 15px; border-radius: 4px; margin-top: 15px;}
+        
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; background: white; font-size: 14px; }
+        th, td { padding: 10px; text-align: center; border: 1px solid #ddd; }
+        th { background-color: var(--primary); color: white; }
+        
+        .dataframe-table th { background-color: #34495e; text-align: center; color: white;}
+        .dataframe-table td { background-color: #ffffff; }
+        .dataframe-table tr:nth-child(even) td { background-color: #f9f9f9; }
+        
+        .btn { color: white; border: none; padding: 10px 15px; cursor: pointer; border-radius: 4px; font-weight: bold; transition: 0.3s; }
+        .btn-primary { background-color: var(--secondary); }
+        .btn-primary:hover { opacity: 0.9; }
+        .btn-success { background-color: var(--success); padding: 15px; font-size: 16px; flex: 2;}
+        .btn-success:disabled { background-color: #95a5a6; cursor: not-allowed; }
+        .btn-danger { background-color: var(--danger); padding: 15px; font-size: 16px; flex: 1;}
+        .btn-danger-small { background-color: var(--danger); padding: 8px 12px; font-size: 12px; }
+        
+        .actions-container { display: flex; gap: 15px; margin-top: 20px; }
+        
+        .kpi-container { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-top: 20px; }
+        .kpi { background: var(--primary); color: white; padding: 15px; border-radius: 8px; text-align: center; display: flex; flex-direction: column; justify-content: center;}
+        .kpi h3 { margin: 0; font-size: 13px; color: #bdc3c7; text-transform: uppercase; border: none; padding-bottom: 0; }
+        .kpi .value { font-size: 24px; font-weight: bold; margin: 10px 0; }
+        .kpi .subtext { font-size: 12px; color: #ecf0f1; }
+        
+        .brecha-card { display: flex; align-items: center; justify-content: center; gap: 15px; padding: 15px; border-radius: 8px; margin-top: 20px; background: #fff; border: 1px solid #ddd; }
+        .brecha-icon { font-size: 32px; }
+        .brecha-text-container { text-align: left; }
+        .brecha-title { font-size: 18px; font-weight: bold; margin: 0; }
+        .brecha-detail { font-size: 14px; margin: 2px 0 0 0; color: #7f8c8d; }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1 style="border-bottom: 2px solid var(--secondary);">Proyección Semanal de Metros</h1>
+
+        <div class="grid-2">
+            <div class="card">
+                <h2>1. Programado y Real del Mes Actual</h2>
+                <label>Plan Mensual (m)</label>
+                <input type="number" id="plan-mensual" value="3000">
+                
+                <div class="destacado">
+                    <label style="margin-top:0;">Avance Acumulado a Hoy (m)</label>
+                    <span style="font-size: 12px; color: #7f8c8d;">Ingreso 100% manual (validado por operaciones).</span>
+                    <input type="number" id="avance-acumulado-global" value="0" style="font-size: 18px; font-weight: bold; color: var(--primary);">
+                </div>
+            </div>
+
+            <div class="card">
+                <h2>2. Carga Archivo Emsa Drilling</h2>
+                <label>Sube el reporte de perforación (.xlsx)</label>
+                <input type="file" id="file-upload" accept=".xlsx">
+                <button class="btn btn-primary" onclick="leerExcel()" style="margin-top: 15px; width: 100%;">Leer Flota Base</button>
+                <div id="error-log" style="color: var(--danger); font-size: 12px; margin-top: 10px;"></div>
+                
+                <div style="display: flex; gap: 10px; margin-top: 20px; border-top: 1px solid #ccc; padding-top: 15px;">
+                    <div style="flex: 1;">
+                        <label>Inicio Proyección</label>
+                        <input type="date" id="fecha-inicio" value="2026-04-20">
+                    </div>
+                    <div style="flex: 1;">
+                        <label>Fin Proyección</label>
+                        <input type="date" id="fecha-fin" value="2026-04-26">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <h2>3. Equipos de Perforación</h2>
+                <button class="btn btn-primary" onclick="agregarEquipoVacio()">+ Añadir Sonda Manual</button>
+            </div>
+            
+            <table id="tabla-equipos">
+                <thead>
+                    <tr>
+                        <th>Sonda / Equipo</th>
+                        <th>Rendimiento (m/día)</th>
+                        <th>Acción</th>
+                    </tr>
+                </thead>
+                <tbody id="tbody-equipos">
+                    <tr id="fila-vacia"><td colspan="3" style="text-align:center; color:#7f8c8d;">Sube el Excel para poblar o añade manualmente.</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="actions-container">
+            <button class="btn btn-success" onclick="ejecutarProyecciones()">Ejecutar Proyección</button>
+            <button class="btn btn-danger" onclick="limpiarTodo()">Borrar Todo</button>
+        </div>
+
+        <div id="panel-resultados" style="display: none;">
+            <h2 style="margin-top: 30px;">4. Resultado de Proyección</h2>
+            
+            <div class="kpi-container">
+                <div class="kpi">
+                    <h3>Avance Actual</h3>
+                    <div class="value" id="kpi-avance">0 m</div>
+                    <div class="subtext"></div>
+                </div>
+                <div class="kpi" style="background: #2980b9;">
+                    <h3>Proyección Modelo</h3>
+                    <div class="value" id="kpi-arima">0 m</div>
+                    <div class="subtext" id="kpi-arima-sub">Estimado para la semana</div>
+                </div>
+                <div class="kpi" style="background: #8e44ad;" id="kpi-req-semana-card">
+                    <h3>Meta de la Semana</h3>
+                    <div class="value" id="kpi-req-semana">0 m</div>
+                    <div class="subtext" id="kpi-req-semana-sub">Exigencia del periodo</div>
+                </div>
+                <div class="kpi" style="background: #e67e22;">
+                    <h3>Faltante del Mes</h3>
+                    <div class="value" id="kpi-faltante-mes">0 m</div>
+                    <div class="subtext" id="kpi-faltante-sub" style="font-weight: bold; color: #fdfcdc;">Plan Mensual: 0 m</div>
+                </div>
+            </div>
+
+            <div class="brecha-card" id="brecha-container">
+                <div class="brecha-icon" id="icono-brecha">⏳</div>
+                <div class="brecha-text-container">
+                    <h3 class="brecha-title" id="texto-brecha">Ejecuta la proyección</h3>
+                    <p class="brecha-detail" id="detalle-brecha">-</p>
+                </div>
+            </div>
+
+            <div id="tabla-asignacion-container" style="margin-top: 20px; overflow-x: auto;"></div>
+            <div id="tabla-detalle-container" style="margin-top: 20px; overflow-x: auto;"></div>
+        </div>
+    </div>
+
+    <script>
+        function fmt(num) { return num.toLocaleString('es-CL', {maximumFractionDigits: 0}); }
+        function fmtDec(num) { return num.toLocaleString('es-CL', {minimumFractionDigits: 1, maximumFractionDigits: 1}); }
+        
+        function agregarEquipoVacio(nombre = "", rend = 0) {
+            const tbody = document.getElementById('tbody-equipos');
+            const filaVacia = document.getElementById('fila-vacia');
+            if(filaVacia) filaVacia.remove();
+
+            const tr = document.createElement('tr');
+            tr.className = "equipo-row";
+            tr.innerHTML = `
+                <td><input type="text" class="eq-nombre" value="${nombre}" placeholder="Ej: Sonda 1"></td>
+                <td><input type="number" class="eq-rend" value="${rend.toFixed(1)}" step="0.1" style="background:#fdfcdc; font-weight:bold;"></td>
+                <td><button class="btn btn-danger-small" onclick="this.parentElement.parentElement.remove()">X</button></td>
+            `;
+            tbody.appendChild(tr);
+        }
+
+        function limpiarTodo() {
+            if(confirm("¿Estás seguro de que deseas borrar todos los datos y reiniciar el dashboard?")) {
+                window.location.reload();
+            }
+        }
+
+        // Leer Excel con lógica de Rendimiento Calendario
+        function leerExcel() {
+            const fileInput = document.getElementById('file-upload');
+            const errorLog = document.getElementById('error-log');
+            errorLog.innerText = "";
+
+            if (fileInput.files.length === 0) {
+                errorLog.innerText = "Sube un archivo Excel primero.";
+                return;
+            }
+
+            const file = fileInput.files[0];
+            const reader = new FileReader();
+
+            reader.onload = function(e) {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, {type: 'array', cellDates: true});
+                    
+                    let sheetName = workbook.SheetNames.find(s => s.toLowerCase().includes("perforaci") || s.toLowerCase().includes("avance") || s.toLowerCase().includes("diario"));
+                    if(!sheetName) sheetName = workbook.SheetNames[0];
+                    
+                    const worksheet = workbook.Sheets[sheetName];
+                    const json = XLSX.utils.sheet_to_json(worksheet, {raw: false});
+                    
+                    if(json.length === 0) throw new Error("La hoja está vacía.");
+
+                    const keys = Object.keys(json[0]);
+                    const normKeys = keys.map(k => k.trim().toUpperCase());
+                    
+                    const colEquipo = keys[normKeys.findIndex(k => ["EQUIPO", "SONDA", "MÁQUINA", "MAQUINA"].includes(k))];
+                    const colFecha = keys[normKeys.findIndex(k => ["FECHA", "FECHA REGISTRO", "DATE"].includes(k))];
+                    const colDesde = keys[normKeys.findIndex(k => ["DESDE", "FROM", "DESDE (M)", "INICIO"].includes(k))];
+                    const colHasta = keys[normKeys.findIndex(k => ["HASTA", "TO", "HASTA (M)", "FIN"].includes(k))];
+                    const colMetros = keys[normKeys.findIndex(k => ["METROS", "METROS PERFORADOS", "AVANCE", "TOTAL"].includes(k))];
+
+                    if (!colEquipo) throw new Error("No se encontró la columna de Sonda/Equipo.");
+
+                    let equiposStats = {};
+
+                    json.forEach(row => {
+                        let equipo = row[colEquipo];
+                        let rawFecha = row[colFecha];
+                        if(!equipo) return;
+                        
+                        let metros = 0;
+                        if (colMetros && row[colMetros] !== undefined) {
+                            metros = parseFloat(row[colMetros]);
+                        } else if (colDesde && colHasta && row[colDesde] !== undefined && row[colHasta] !== undefined) {
+                            metros = parseFloat(row[colHasta]) - parseFloat(row[colDesde]);
+                        }
+                        
+                        if(isNaN(metros)) metros = 0;
+
+                        if(!equiposStats[equipo]) equiposStats[equipo] = { totalMetros: 0, fechasValidas: [] };
+                        equiposStats[equipo].totalMetros += metros;
+                        
+                        if(rawFecha) {
+                            let d = new Date(rawFecha);
+                            if(!isNaN(d.getTime())) {
+                                equiposStats[equipo].fechasValidas.push(d.getTime());
+                            }
+                        }
+                    });
+
+                    document.getElementById('tbody-equipos').innerHTML = "";
+                    
+                    for (const [equipo, stats] of Object.entries(equiposStats)) {
+                        let numDiasCalendario = 1;
+                        if (stats.fechasValidas.length > 0) {
+                            let minDate = Math.min(...stats.fechasValidas);
+                            let maxDate = Math.max(...stats.fechasValidas);
+                            numDiasCalendario = Math.round((maxDate - minDate) / (1000 * 60 * 60 * 24)) + 1;
+                        }
+                        if(numDiasCalendario < 1) numDiasCalendario = 1;
+
+                        let rendPromedioReal = stats.totalMetros / numDiasCalendario;
+                        agregarEquipoVacio(equipo, rendPromedioReal);
+                    }
+
+                    alert("Equipos Cargados");
+
+                } catch (err) {
+                    errorLog.innerText = "Error: " + err.message;
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        // Ejecutar Cálculos con Varianza Simulada
+        function ejecutarProyecciones() {
+            try {
+                const planMensual = parseFloat(document.getElementById("plan-mensual").value) || 0;
+                const avanceAcumulado = parseFloat(document.getElementById("avance-acumulado-global").value) || 0;
+                
+                const strInicio = document.getElementById("fecha-inicio").value;
+                const strFin = document.getElementById("fecha-fin").value;
+                if(!strInicio || !strFin) throw new Error("Ingresa las fechas de proyección.");
+                
+                const fInicio = new Date(strInicio + "T00:00:00");
+                const fFin = new Date(strFin + "T00:00:00");
+                
+                const diasProyeccion = Math.round((fFin - fInicio) / (1000 * 60 * 60 * 24)) + 1;
+                if(diasProyeccion <= 0) throw new Error("La fecha fin debe ser mayor o igual a la de inicio.");
+
+                // CORRECCIÓN MATEMÁTICA: Calculamos los días restantes en base a fInicio, NO al día de hoy
+                let finMesActual = new Date(fInicio.getFullYear(), fInicio.getMonth() + 1, 0);
+                let diasRestantesMes = Math.round((finMesActual - fInicio) / (1000 * 60 * 60 * 24)) + 1;
+                diasRestantesMes = Math.max(1, diasRestantesMes); 
+
+                const filasEquipos = document.querySelectorAll('.equipo-row');
+                let rendimientoTotalFlota = 0;
+                let equipos = [];
+
+                filasEquipos.forEach(row => {
+                    let nombre = row.querySelector('.eq-nombre').value;
+                    let rend = parseFloat(row.querySelector('.eq-rend').value) || 0;
+                    rendimientoTotalFlota += rend;
+                    equipos.push({nombre, rend});
+                });
+
+                let proyeccionTotal = rendimientoTotalFlota * diasProyeccion;
+
+                // --- MOTOR ESTOCÁSTICO: Generar perfiles diarios con variabilidad ---
+                let perfilesDiarios = {};
+                equipos.forEach(eq => {
+                    let diasArr = [];
+                    let sumaIdeal = eq.rend * diasProyeccion;
+                    let sumaTemporal = 0;
+
+                    if(diasProyeccion === 1 || eq.rend === 0) {
+                        perfilesDiarios[eq.nombre] = [eq.rend];
+                    } else {
+                        for(let i=0; i<diasProyeccion; i++) {
+                            // Varianza aleatoria de +/- 20%
+                            let varianza = eq.rend * 0.20; 
+                            let val = eq.rend + (Math.random() * varianza * 2 - varianza);
+                            val = Math.max(0, val); // Evitar perforación negativa
+                            diasArr.push(val);
+                            sumaTemporal += val;
+                        }
+                        // Ajuste matemático para que la suma total sea exactamente la Proyección
+                        let factor = sumaIdeal / (sumaTemporal || 1);
+                        perfilesDiarios[eq.nombre] = diasArr.map(v => v * factor);
+                    }
+                });
+
+                // Construir Matriz Diaria
+                let tablaDetalleHTML = `<table class="dataframe-table"><thead><tr><th>FECHA</th>`;
+                equipos.forEach(eq => tablaDetalleHTML += `<th>${eq.nombre}</th>`);
+                tablaDetalleHTML += `<th>TOTAL DIARIO</th></tr></thead><tbody>`;
+
+                for(let i=0; i<diasProyeccion; i++) {
+                    let currentD = new Date(fInicio);
+                    currentD.setDate(currentD.getDate() + i);
+                    let dateStr = currentD.toISOString().split('T')[0];
+                    
+                    tablaDetalleHTML += `<tr><td>${dateStr}</td>`;
+                    let totalDia = 0;
+                    equipos.forEach(eq => {
+                        let valorRealista = perfilesDiarios[eq.nombre][i];
+                        tablaDetalleHTML += `<td>${fmtDec(valorRealista)}</td>`;
+                        totalDia += valorRealista;
+                    });
+                    tablaDetalleHTML += `<td><strong>${fmtDec(totalDia)}</strong></td></tr>`;
+                }
+                tablaDetalleHTML += `</tbody></table>`;
+                document.getElementById("tabla-detalle-container").innerHTML = `<h3>Matriz de Proyección: Sonda por Día (Simulada)</h3>` + tablaDetalleHTML;
+
+                // Lógicas de Negocio
+                let metrosFaltantesMes = Math.max(0, planMensual - avanceAcumulado);
+                let tasaRecuperacionDiaria = metrosFaltantesMes / diasRestantesMes;
+                let metaSemanaRequerida = tasaRecuperacionDiaria * diasProyeccion;
+
+                // SALVAGUARDA: No exigir más de lo que falta para el mes total
+                metaSemanaRequerida = Math.min(metaSemanaRequerida, metrosFaltantesMes);
+
+                let tablaAsigHTML = `<table class="dataframe-table"><thead><tr>
+                    <th>Sonda / Equipo</th><th>Rend. Objetivo (m/día)</th><th>Meta Asignada (Semana)</th><th>Rend. Exigido Real (m/día)</th>
+                    </tr></thead><tbody>`;
+                
+                equipos.forEach(eq => {
+                    let participacion = rendimientoTotalFlota > 0 ? (eq.rend / rendimientoTotalFlota) : (1.0 / equipos.length);
+                    let metaSondaSemana = metaSemanaRequerida * participacion;
+                    let reqDiario = diasProyeccion > 0 ? (metaSondaSemana / diasProyeccion) : 0;
+                    
+                    tablaAsigHTML += `<tr>
+                        <td>${eq.nombre}</td>
+                        <td>${fmtDec(eq.rend)}</td>
+                        <td>${fmtDec(metaSondaSemana)}</td>
+                        <td><strong>${fmtDec(reqDiario)}</strong></td>
+                    </tr>`;
+                });
+                tablaAsigHTML += `</tbody></table>`;
+
+                if (metrosFaltantesMes > 0) {
+                    document.getElementById("tabla-asignacion-container").innerHTML = `<h3>Metros Semanales por sonda</h3>` + tablaAsigHTML;
+                } else {
+                    document.getElementById("tabla-asignacion-container").innerHTML = "";
+                }
+
+                // Actualizar KPIs
+                document.getElementById("panel-resultados").style.display = "block";
+                
+                document.getElementById("kpi-avance").innerText = `${fmt(avanceAcumulado)} m`;
+                document.getElementById("kpi-arima").innerText = `${fmt(proyeccionTotal)} m`;
+                document.getElementById("kpi-req-semana").innerText = `${fmt(metaSemanaRequerida)} m`;
+                document.getElementById("kpi-faltante-mes").innerText = `${fmt(metrosFaltantesMes)} m`;
+                document.getElementById("kpi-faltante-sub").innerText = `Plan Mensual: ${fmt(planMensual)} m`;
+                
+                document.getElementById("kpi-arima-sub").innerText = `Para los ${diasProyeccion} días`;
+                document.getElementById("kpi-req-semana-sub").innerText = `Para cubrir los ${diasProyeccion} días`;
+
+                let brecha = proyeccionTotal - metaSemanaRequerida;
+                let icono = document.getElementById("icono-brecha");
+                let textoBrecha = document.getElementById("texto-brecha");
+                let detalle = document.getElementById("detalle-brecha");
+                let cardReqSemana = document.getElementById("kpi-req-semana-card");
+                let brechaContainer = document.getElementById("brecha-container");
+                
+                if (metrosFaltantesMes === 0) {
+                    icono.innerText = "✅";
+                    textoBrecha.innerText = "Cumple Plan Mensual";
+                    textoBrecha.style.color = "var(--success)";
+                    detalle.innerText = "No se requiere esfuerzo adicional este periodo.";
+                    cardReqSemana.style.background = "var(--success)";
+                    brechaContainer.style.borderLeft = "5px solid var(--success)";
+                } else if (brecha >= 0) {
+                    icono.innerText = "✅";
+                    textoBrecha.innerText = "Cumple proyección semanal";
+                    textoBrecha.style.color = "var(--success)";
+                    detalle.innerText = `Superávit estimado: +${fmt(Math.abs(brecha))} m`;
+                    cardReqSemana.style.background = "var(--success)";
+                    brechaContainer.style.borderLeft = "5px solid var(--success)";
+                } else {
+                    icono.innerText = "❌";
+                    textoBrecha.innerText = "No Cumple PAI";
+                    textoBrecha.style.color = "var(--danger)";
+                    detalle.innerText = `Déficit estimado: -${fmt(Math.abs(brecha))} m`;
+                    cardReqSemana.style.background = "var(--danger)";
+                    brechaContainer.style.borderLeft = "5px solid var(--danger)";
+                }
+
+            } catch (error) {
+                alert("Error en el cálculo: " + error.message);
+            }
+        }
+    </script>
+</body>
+</html>
